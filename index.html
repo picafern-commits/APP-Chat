@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Só Nós" />
+  <title>Só Nós</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app" class="app">
+    <section id="loginScreen" class="screen active">
+      <div class="card login-card">
+        <div class="brand">💬</div>
+        <h1>Só Nós</h1>
+        <p class="subtitle">Uma app privada para vocês os dois.</p>
+        <label class="label" for="pinInput">PIN</label>
+        <input id="pinInput" class="input" type="password" inputmode="numeric" maxlength="4" placeholder="Introduz o PIN" />
+        <button id="loginBtn" class="btn primary">Entrar</button>
+        <p class="hint">PIN demo: <strong>1234</strong></p>
+      </div>
+    </section>
+
+    <section id="chatScreen" class="screen">
+      <header class="topbar">
+        <div>
+          <div class="title">Só Nós</div>
+          <div class="status">Privado · local</div>
+        </div>
+        <div class="actions">
+          <button id="themeBtn" class="icon-btn" title="Tema">🌓</button>
+          <button id="clearBtn" class="icon-btn" title="Limpar conversa">🗑️</button>
+          <button id="logoutBtn" class="icon-btn" title="Sair">🚪</button>
+        </div>
+      </header>
+
+      <main id="messages" class="messages"></main>
+
+      <div id="previewWrap" class="preview hidden">
+        <img id="previewImg" alt="Pré-visualização" />
+        <button id="removeImageBtn" class="remove-image">✕</button>
+      </div>
+
+      <footer class="composer">
+        <label for="imageInput" class="attach-btn">＋</label>
+        <input id="imageInput" type="file" accept="image/*" hidden />
+        <input id="messageInput" class="composer-input" type="text" placeholder="Escreve uma mensagem..." />
+        <button id="sendBtn" class="send-btn">Enviar</button>
+      </footer>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
