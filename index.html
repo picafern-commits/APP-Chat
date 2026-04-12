@@ -1,59 +1,111 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="pt-PT">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#0f172a" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b141a" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Só Nós" />
-  <title>Só Nós</title>
+  <meta name="apple-mobile-web-app-title" content="Só Nos" />
+  <title>Só Nos</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div id="app" class="app">
-    <section id="loginScreen" class="screen active">
-      <div class="card login-card">
-        <div class="brand">💬</div>
-        <h1>Só Nós</h1>
-        <p class="subtitle">Uma app privada para vocês os dois.</p>
-        <label class="label" for="pinInput">PIN</label>
-        <input id="pinInput" class="input" type="password" inputmode="numeric" maxlength="4" placeholder="Introduz o PIN" />
-        <button id="loginBtn" class="btn primary">Entrar</button>
-        <p class="hint">PIN demo: <strong>1234</strong></p>
-      </div>
-    </section>
-
-    <section id="chatScreen" class="screen">
-      <header class="topbar">
+  <div id="app" class="app-shell hidden">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-badge">❤</div>
         <div>
-          <div class="title">Só Nós</div>
-          <div class="status">Privado · local</div>
+          <h1 id="brandTitle">Só Nos</h1>
+          <p>Chat privado</p>
         </div>
-        <div class="actions">
-          <button id="themeBtn" class="icon-btn" title="Tema">🌓</button>
-          <button id="clearBtn" class="icon-btn" title="Limpar conversa">🗑️</button>
-          <button id="logoutBtn" class="icon-btn" title="Sair">🚪</button>
+      </div>
+
+      <div class="profile-card">
+        <div class="avatar" id="myAvatar">R</div>
+        <div>
+          <strong id="myName">Ricardo</strong>
+          <p id="statusText">Ligado</p>
+        </div>
+      </div>
+
+      <div class="sidebar-actions">
+        <button id="themeToggle" class="ghost-btn">🌙 Tema</button>
+        <button id="clearLocalBtn" class="ghost-btn danger">Limpar sessão</button>
+      </div>
+
+      <div class="sidebar-box">
+        <h3>Utilizadores</h3>
+        <div class="mini-user"><span class="dot online"></span><span id="user1Label">Ricardo</span></div>
+        <div class="mini-user"><span class="dot online"></span><span id="user2Label">Carol</span></div>
+      </div>
+
+      <div class="sidebar-box small">
+        <h3>Instalar</h3>
+        <p>No iPhone abre no Safari e usa <b>Partilhar → Adicionar ao ecrã principal</b>.</p>
+      </div>
+    </aside>
+
+    <main class="chat-area">
+      <header class="chat-header">
+        <div class="chat-contact">
+          <div class="avatar secondary" id="otherAvatar">C</div>
+          <div>
+            <h2 id="otherName">Carol</h2>
+            <p id="connectionText">Sincronização em tempo real</p>
+          </div>
+        </div>
+        <div class="header-actions">
+          <button id="scrollBottomBtn" class="icon-btn" title="Ir para baixo">↓</button>
         </div>
       </header>
 
-      <main id="messages" class="messages"></main>
+      <section id="messages" class="messages"></section>
 
-      <div id="previewWrap" class="preview hidden">
-        <img id="previewImg" alt="Pré-visualização" />
-        <button id="removeImageBtn" class="remove-image">✕</button>
-      </div>
+      <div id="typingHint" class="typing-hint hidden">A preparar mensagem…</div>
 
-      <footer class="composer">
+      <form id="composer" class="composer">
         <label for="imageInput" class="attach-btn">＋</label>
         <input id="imageInput" type="file" accept="image/*" hidden />
-        <input id="messageInput" class="composer-input" type="text" placeholder="Escreve uma mensagem..." />
-        <button id="sendBtn" class="send-btn">Enviar</button>
-      </footer>
-    </section>
+        <textarea id="messageInput" rows="1" placeholder="Escreve uma mensagem..."></textarea>
+        <button id="sendBtn" type="submit" class="send-btn">Enviar</button>
+      </form>
+    </main>
   </div>
 
-  <script src="app.js"></script>
+  <section id="loginScreen" class="login-screen">
+    <div class="login-card">
+      <div class="login-logo">❤</div>
+      <h1>Só Nos</h1>
+      <p class="subtitle">Chat privado para dois</p>
+
+      <div class="form-group">
+        <label for="userSelect">Entrar como</label>
+        <select id="userSelect">
+          <option value="ricardo">Ricardo</option>
+          <option value="carol">Carol</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="pinInput">PIN</label>
+        <input id="pinInput" type="password" inputmode="numeric" maxlength="6" placeholder="Introduz o PIN" />
+      </div>
+
+      <button id="loginBtn" class="primary-btn">Entrar</button>
+      <p id="loginError" class="error-text"></p>
+
+      <details class="setup-details">
+        <summary>Primeira configuração</summary>
+        <div class="setup-box">
+          <p>Abre o ficheiro <b>firebase-config.js</b> e cola a tua configuração Firebase.</p>
+          <p>Podes também mudar nomes e PINs nesse ficheiro.</p>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <script type="module" src="app.js"></script>
 </body>
 </html>

@@ -1,190 +1,305 @@
-const DEMO_PIN = '1234';
-const STORAGE_KEYS = {
-  messages: 'so_nos_messages',
-  theme: 'so_nos_theme',
-  logged: 'so_nos_logged'
+import { APP_CONFIG, firebaseConfig } from './firebase-config.js';
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  query,
+  orderBy,
+  onSnapshot,
+  serverTimestamp,
+  updateDoc,
+  doc,
+  getDocs,
+  limit
+} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+const el = {
+  app: document.getElementById('app'),
+  loginScreen: document.getElementById('loginScreen'),
+  userSelect: document.getElementById('userSelect'),
+  pinInput: document.getElementById('pinInput'),
+  loginBtn: document.getElementById('loginBtn'),
+  loginError: document.getElementById('loginError'),
+  messages: document.getElementById('messages'),
+  composer: document.getElementById('composer'),
+  messageInput: document.getElementById('messageInput'),
+  imageInput: document.getElementById('imageInput'),
+  themeToggle: document.getElementById('themeToggle'),
+  clearLocalBtn: document.getElementById('clearLocalBtn'),
+  brandTitle: document.getElementById('brandTitle'),
+  myName: document.getElementById('myName'),
+  otherName: document.getElementById('otherName'),
+  myAvatar: document.getElementById('myAvatar'),
+  otherAvatar: document.getElementById('otherAvatar'),
+  user1Label: document.getElementById('user1Label'),
+  user2Label: document.getElementById('user2Label'),
+  statusText: document.getElementById('statusText'),
+  connectionText: document.getElementById('connectionText'),
+  scrollBottomBtn: document.getElementById('scrollBottomBtn')
 };
 
-const loginScreen = document.getElementById('loginScreen');
-const chatScreen = document.getElementById('chatScreen');
-const pinInput = document.getElementById('pinInput');
-const loginBtn = document.getElementById('loginBtn');
-const logoutBtn = document.getElementById('logoutBtn');
-const clearBtn = document.getElementById('clearBtn');
-const themeBtn = document.getElementById('themeBtn');
-const messagesEl = document.getElementById('messages');
-const messageInput = document.getElementById('messageInput');
-const sendBtn = document.getElementById('sendBtn');
-const imageInput = document.getElementById('imageInput');
-const previewWrap = document.getElementById('previewWrap');
-const previewImg = document.getElementById('previewImg');
-const removeImageBtn = document.getElementById('removeImageBtn');
+let currentUserKey = null;
+let currentUser = null;
+let otherUserKey = null;
+let db = null;
+let selectedImageData = null;
+const sessionKey = 'so_nos_session_user';
+const themeKey = 'so_nos_theme_roxo';
 
-let pendingImage = '';
-
-function loadMessages() {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEYS.messages) || '[]');
-  } catch {
-    return [];
-  }
+function initTheme() {
+  const saved = localStorage.getItem(themeKey) || 'dark';
+  document.body.classList.toggle('light', saved === 'light');
 }
 
-function saveMessages(messages) {
-  localStorage.setItem(STORAGE_KEYS.messages, JSON.stringify(messages));
+function toggleTheme() {
+  const isLight = document.body.classList.toggle('light');
+  localStorage.setItem(themeKey, isLight ? 'light' : 'dark');
+}
+
+function hasFirebaseConfig() {
+  return firebaseConfig && firebaseConfig.apiKey && firebaseConfig.apiKey !== 'COLOCA_AQUI';
+}
+
+function bootFirebase() {
+  const app = initializeApp(firebaseConfig);
+  db = getFirestore(app);
+}
+
+function setUIBrand() {
+  document.title = APP_CONFIG.appName;
+  el.brandTitle.textContent = APP_CONFIG.appName;
+}
+
+function populateUsers() {
+  const entries = Object.entries(APP_CONFIG.users);
+  el.userSelect.innerHTML = entries.map(([key, value]) => `<option value="${key}">${value.name}</option>`).join('');
+  if (entries[0]) el.user1Label.textContent = entries[0][1].name;
+  if (entries[1]) el.user2Label.textContent = entries[1][1].name;
+}
+
+function avatarLetter(name) {
+  return (name || '?').trim().charAt(0).toUpperCase();
+}
+
+function setUserUI() {
+  const users = APP_CONFIG.users;
+  const keys = Object.keys(users);
+  otherUserKey = keys.find(k => k !== currentUserKey) || currentUserKey;
+  const otherUser = users[otherUserKey];
+
+  el.myName.textContent = currentUser.name;
+  el.otherName.textContent = otherUser.name;
+  el.myAvatar.textContent = avatarLetter(currentUser.name);
+  el.otherAvatar.textContent = avatarLetter(otherUser.name);
+}
+
+function showLogin() {
+  el.loginScreen.classList.remove('hidden');
+  el.app.classList.add('hidden');
+}
+
+function showApp() {
+  el.loginScreen.classList.add('hidden');
+  el.app.classList.remove('hidden');
+}
+
+function login() {
+  const selected = el.userSelect.value;
+  const pin = el.pinInput.value.trim();
+  const user = APP_CONFIG.users[selected];
+  if (!user) {
+    el.loginError.textContent = 'Utilizador inválido.';
+    return;
+  }
+  if (pin !== user.pin) {
+    el.loginError.textContent = 'PIN incorreto.';
+    return;
+  }
+  currentUserKey = selected;
+  currentUser = user;
+  localStorage.setItem(sessionKey, selected);
+  setUserUI();
+  showApp();
+  subscribeMessages();
+}
+
+function restoreSession() {
+  const saved = localStorage.getItem(sessionKey);
+  if (saved && APP_CONFIG.users[saved]) {
+    currentUserKey = saved;
+    currentUser = APP_CONFIG.users[saved];
+    setUserUI();
+    showApp();
+    subscribeMessages();
+  } else {
+    showLogin();
+  }
 }
 
 function formatTime(ts) {
-  return new Date(ts).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
+  if (!ts) return '';
+  const date = ts.toDate ? ts.toDate() : new Date(ts);
+  return date.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
 }
 
-function renderMessages() {
-  const messages = loadMessages();
-  if (!messages.length) {
-    messagesEl.innerHTML = `
-      <div class="empty-state">
-        <p>Sem mensagens ainda.</p>
-        <p>Escreve a primeira 💚</p>
-      </div>
-    `;
-    return;
-  }
-
-  messagesEl.innerHTML = messages.map(msg => `
-    <div class="message-row ${msg.author}">
-      <div class="bubble">
-        ${msg.image ? `<img src="${msg.image}" alt="imagem enviada">` : ''}
-        ${msg.text ? `<div>${escapeHtml(msg.text)}</div>` : ''}
-        <div class="meta">${formatTime(msg.ts)} · ${msg.author === 'me' ? '✔' : 'Recebida'}</div>
-      </div>
-    </div>
-  `).join('');
-
-  messagesEl.scrollTop = messagesEl.scrollHeight;
-}
-
-function escapeHtml(text) {
+function escapeHtml(text = '') {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
 }
 
-function showChat() {
-  loginScreen.classList.remove('active');
-  chatScreen.classList.add('active');
-  localStorage.setItem(STORAGE_KEYS.logged, '1');
-  renderMessages();
-}
+function renderMessages(docs) {
+  el.messages.innerHTML = '';
+  docs.forEach((snap) => {
+    const msg = snap.data();
+    const mine = msg.senderKey === currentUserKey;
+    const row = document.createElement('div');
+    row.className = `message-row ${mine ? 'me' : 'other'}`;
 
-function showLogin() {
-  chatScreen.classList.remove('active');
-  loginScreen.classList.add('active');
-  localStorage.removeItem(STORAGE_KEYS.logged);
-}
+    const readBy = Array.isArray(msg.readBy) ? msg.readBy : [];
+    const seenByOther = readBy.includes(otherUserKey);
 
-function sendMessage() {
-  const text = messageInput.value.trim();
-  if (!text && !pendingImage) return;
+    row.innerHTML = `
+      <div class="message-bubble">
+        ${msg.imageData ? `<img class="message-image" src="${msg.imageData}" alt="imagem enviada" />` : ''}
+        ${msg.text ? `<div class="message-text">${escapeHtml(msg.text)}</div>` : ''}
+        <div class="meta">
+          <span>${formatTime(msg.createdAt)}</span>
+          ${mine ? `<span class="${seenByOther ? 'read' : ''}">${seenByOther ? '✔✔' : '✔'}</span>` : ''}
+        </div>
+      </div>`;
+    el.messages.appendChild(row);
 
-  const messages = loadMessages();
-  messages.push({
-    id: crypto.randomUUID(),
-    author: 'me',
-    text,
-    image: pendingImage,
-    ts: Date.now()
+    if (!mine && !readBy.includes(currentUserKey)) {
+      updateDoc(doc(db, 'rooms', APP_CONFIG.roomId, 'messages', snap.id), { readBy: [...readBy, currentUserKey] }).catch(() => {});
+    }
   });
-  saveMessages(messages);
-  messageInput.value = '';
-  clearPendingImage();
-  renderMessages();
-
-  setTimeout(() => {
-    const replyPool = [
-      'Gosto muito de ti ❤️',
-      'Que mensagem linda 😘',
-      'Já vi agora 💚',
-      'Fala comigo 😍',
-      'Estou aqui amor'
-    ];
-    const all = loadMessages();
-    all.push({
-      id: crypto.randomUUID(),
-      author: 'other',
-      text: replyPool[Math.floor(Math.random() * replyPool.length)],
-      image: '',
-      ts: Date.now()
-    });
-    saveMessages(all);
-    renderMessages();
-  }, 900);
+  scrollToBottom();
 }
 
-function clearPendingImage() {
-  pendingImage = '';
-  imageInput.value = '';
-  previewImg.src = '';
-  previewWrap.classList.add('hidden');
+function subscribeMessages() {
+  const q = query(collection(db, 'rooms', APP_CONFIG.roomId, 'messages'), orderBy('createdAt', 'asc'));
+  onSnapshot(q, (snapshot) => renderMessages(snapshot.docs), (error) => {
+    el.connectionText.textContent = 'Erro na ligação ao Firebase';
+    console.error(error);
+  });
 }
 
-loginBtn.addEventListener('click', () => {
-  if (pinInput.value === DEMO_PIN) {
-    pinInput.value = '';
-    showChat();
-  } else {
-    alert('PIN incorreto. Usa 1234 nesta versão demo.');
-  }
-});
+async function compressImage(file) {
+  const img = await createImageBitmap(file);
+  const canvas = document.createElement('canvas');
+  const maxWidth = 1200;
+  const scale = Math.min(1, maxWidth / img.width);
+  canvas.width = Math.round(img.width * scale);
+  canvas.height = Math.round(img.height * scale);
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL('image/jpeg', 0.78);
+}
 
-pinInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') loginBtn.click();
-});
+async function sendMessage(event) {
+  event.preventDefault();
+  const text = el.messageInput.value.trim();
+  if (!text && !selectedImageData) return;
 
-logoutBtn.addEventListener('click', showLogin);
-clearBtn.addEventListener('click', () => {
-  if (confirm('Queres apagar a conversa guardada neste telemóvel?')) {
-    localStorage.removeItem(STORAGE_KEYS.messages);
-    renderMessages();
-  }
-});
+  await addDoc(collection(db, 'rooms', APP_CONFIG.roomId, 'messages'), {
+    senderKey: currentUserKey,
+    senderName: currentUser.name,
+    text,
+    imageData: selectedImageData,
+    createdAt: serverTimestamp(),
+    readBy: [currentUserKey]
+  });
 
-themeBtn.addEventListener('click', () => {
-  const isLight = document.body.classList.toggle('light');
-  localStorage.setItem(STORAGE_KEYS.theme, isLight ? 'light' : 'dark');
-});
+  el.messageInput.value = '';
+  el.imageInput.value = '';
+  selectedImageData = null;
+  autoGrow();
+}
 
-sendBtn.addEventListener('click', sendMessage);
-messageInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') sendMessage();
-});
+function autoGrow() {
+  el.messageInput.style.height = 'auto';
+  el.messageInput.style.height = `${Math.min(el.messageInput.scrollHeight, 130)}px`;
+}
 
-imageInput.addEventListener('change', (e) => {
-  const file = e.target.files?.[0];
+function scrollToBottom() {
+  el.messages.scrollTop = el.messages.scrollHeight;
+}
+
+async function setupImage(event) {
+  const file = event.target.files?.[0];
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    pendingImage = String(reader.result || '');
-    previewImg.src = pendingImage;
-    previewWrap.classList.remove('hidden');
-  };
-  reader.readAsDataURL(file);
-});
+  selectedImageData = await compressImage(file);
+}
 
-removeImageBtn.addEventListener('click', clearPendingImage);
+function clearSession() {
+  localStorage.removeItem(sessionKey);
+  location.reload();
+}
 
-(function init() {
-  const savedTheme = localStorage.getItem(STORAGE_KEYS.theme);
-  if (savedTheme === 'light') document.body.classList.add('light');
+function guardConfig() {
+  if (!hasFirebaseConfig()) {
+    el.loginError.textContent = 'Falta configurar o Firebase no ficheiro firebase-config.js';
+    return false;
+  }
+  return true;
+}
 
-  if (localStorage.getItem(STORAGE_KEYS.logged) === '1') {
-    showChat();
+function registerSW() {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  }
+}
+
+function wire() {
+  el.loginBtn.addEventListener('click', () => {
+    if (!guardConfig()) return;
+    login();
+  });
+  el.pinInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (!guardConfig()) return;
+      login();
+    }
+  });
+  el.themeToggle.addEventListener('click', toggleTheme);
+  el.clearLocalBtn.addEventListener('click', clearSession);
+  el.composer.addEventListener('submit', sendMessage);
+  el.messageInput.addEventListener('input', autoGrow);
+  el.imageInput.addEventListener('change', setupImage);
+  el.scrollBottomBtn.addEventListener('click', scrollToBottom);
+}
+
+async function seedWelcomeMessage() {
+  const q = query(collection(db, 'rooms', APP_CONFIG.roomId, 'messages'), limit(1));
+  const snap = await getDocs(q);
+  if (snap.empty) {
+    await addDoc(collection(db, 'rooms', APP_CONFIG.roomId, 'messages'), {
+      senderKey: 'system',
+      senderName: 'Sistema',
+      text: 'Chat pronto. Já podem falar os dois em tempo real. ❤',
+      imageData: null,
+      createdAt: serverTimestamp(),
+      readBy: []
+    });
+  }
+}
+
+function init() {
+  initTheme();
+  setUIBrand();
+  populateUsers();
+  wire();
+  registerSW();
+
+  if (hasFirebaseConfig()) {
+    bootFirebase();
+    seedWelcomeMessage().finally(restoreSession);
   } else {
     showLogin();
   }
+}
 
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js').catch(() => {});
-    });
-  }
-})();
+init();

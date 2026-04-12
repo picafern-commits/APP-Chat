@@ -1,11 +1,9 @@
 {
-  "name": "Só Nós",
-  "short_name": "Só Nós",
+  "name": "Só Nos",
+  "short_name": "Só Nos",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#0b1220",
-  "theme_color": "#0f172a",
-  "lang": "pt-PT",
-  "orientation": "portrait",
+  "background_color": "#0b141a",
+  "theme_color": "#7c4dff",
   "icons": []
 }
