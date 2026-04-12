@@ -8,10 +8,11 @@ export const APP_CONFIG = {
 };
 
 export const firebaseConfig = {
-  apiKey: 'COLOCA_AQUI',
-  authDomain: 'COLOCA_AQUI',
-  projectId: 'COLOCA_AQUI',
-  storageBucket: 'COLOCA_AQUI',
-  messagingSenderId: 'COLOCA_AQUI',
-  appId: 'COLOCA_AQUI'
+  apiKey: "AIzaSyATChVobBslu3AlmuelOM1TeD8KBqy3R9I",
+  authDomain: "app-chat-f3161.firebaseapp.com",
+  projectId: "app-chat-f3161",
+  storageBucket: "app-chat-f3161.firebasestorage.app",
+  messagingSenderId: "189997824631",
+  appId: "1:189997824631:web:6aeb2d3e04a9b33cdea472",
+  measurementId: "G-T52B6T53TK"
 };
