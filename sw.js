@@ -1,10 +1,4 @@
-const CACHE_NAME = 'so-nos-cache-v2-roxo';
-const URLS = ['./', './index.html', './style.css', './app.js', './manifest.json', './firebase-config.js'];
-
-self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(URLS)));
-});
-
-self.addEventListener('fetch', (event) => {
-  event.respondWith(caches.match(event.request).then((cached) => cached || fetch(event.request)));
-});
+const CACHE = 'so-nos-v1';
+const ASSETS = ['./','./index.html','./style.css','./app.js','./manifest.json','./icon-192.png','./icon-512.png'];
+self.addEventListener('install', e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS))));
+self.addEventListener('fetch', e => e.respondWith(caches.match(e.request).then(r => r || fetch(e.request))));

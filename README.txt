@@ -1,57 +1,31 @@
-SÓ NOS - CHAT PRIVADO EM TEMPO REAL
-===================================
+SÓ NOS - APP DE CASAL
 
-Esta versão já vai personalizada para:
-- Nome da app: Só Nos
-- Utilizador 1: Ricardo
-- Utilizador 2: Carol
-- PIN Ricardo: 22970
-- PIN Carol: 22970
-- Cor principal: Roxo
+Esta versão já inclui:
+- Chat privado com resposta a mensagens
+- Lista de compras melhorada
+- Agenda do casal
+- Memórias com imagem
+- Navegação em baixo
+- Visual roxo premium
+- PWA pronta para Android/iPhone
 
-O que já vem nesta versão:
-- Chat em tempo real para Android e iPhone
-- 2 utilizadores com PIN
-- Envio de texto
-- Envio de imagem
-- Visto de leitura (✔ / ✔✔)
-- Tema escuro/claro
-- Instalação como app no ecrã principal
+COMO USAR LOCALMENTE
+1. Descompactar o ZIP.
+2. Abrir a pasta num servidor local simples.
+3. Exemplo no PC com Python:
+   python -m http.server 8000
+4. Abrir http://localhost:8000
 
-FICHEIROS IMPORTANTES
----------------------
-1) firebase-config.js
-2) index.html
-3) style.css
-4) app.js
+COMO INSTALAR NO IPHONE
+1. Publicar a pasta no GitHub Pages ou outro hosting.
+2. Abrir no Safari.
+3. Partilhar > Adicionar ao ecrã principal.
 
-ANTES DE USAR
--------------
-1. Cria um projeto no Firebase
-2. Ativa Firestore Database
-3. Vai a Project Settings > Your apps > Web app
-4. Copia a configuração Firebase para o ficheiro firebase-config.js
-5. Publica a pasta no GitHub Pages ou abre num servidor local
+FIREBASE
+- O ficheiro firebase-config.js está em modo local.
+- Quando tiveres os dados do Firebase, cola nesse ficheiro.
+- O ficheiro firebase-config.example.js mostra o formato.
 
-EXEMPLO DE REGRAS FIRESTORE PARA TESTAR
----------------------------------------
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /rooms/{roomId}/messages/{messageId} {
-      allow read, write: if true;
-    }
-  }
-}
-
-ATENÇÃO
--------
-Estas regras são abertas e servem só para testes rápidos.
-
-IPHONE
-------
-Abre no Safari > Partilhar > Adicionar ao ecrã principal
-
-ANDROID
--------
-Abre no Chrome > menu > Instalar app / Adicionar ao ecrã principal
+NOTA
+Neste ZIP a app está funcional em modo local para testar o layout e as funções.
+A ligação real ao Firebase pode ser adicionada numa próxima versão.

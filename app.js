@@ -1,305 +1,378 @@
-import { APP_CONFIG, firebaseConfig } from './firebase-config.js';
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-import {
-  getFirestore,
-  collection,
-  addDoc,
-  query,
-  orderBy,
-  onSnapshot,
-  serverTimestamp,
-  updateDoc,
-  doc,
-  getDocs,
-  limit
-} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import firebaseConfig from './firebase-config.js';
 
-const el = {
-  app: document.getElementById('app'),
-  loginScreen: document.getElementById('loginScreen'),
-  userSelect: document.getElementById('userSelect'),
-  pinInput: document.getElementById('pinInput'),
-  loginBtn: document.getElementById('loginBtn'),
-  loginError: document.getElementById('loginError'),
-  messages: document.getElementById('messages'),
-  composer: document.getElementById('composer'),
-  messageInput: document.getElementById('messageInput'),
-  imageInput: document.getElementById('imageInput'),
-  themeToggle: document.getElementById('themeToggle'),
-  clearLocalBtn: document.getElementById('clearLocalBtn'),
-  brandTitle: document.getElementById('brandTitle'),
-  myName: document.getElementById('myName'),
-  otherName: document.getElementById('otherName'),
-  myAvatar: document.getElementById('myAvatar'),
-  otherAvatar: document.getElementById('otherAvatar'),
-  user1Label: document.getElementById('user1Label'),
-  user2Label: document.getElementById('user2Label'),
-  statusText: document.getElementById('statusText'),
-  connectionText: document.getElementById('connectionText'),
-  scrollBottomBtn: document.getElementById('scrollBottomBtn')
+const state = {
+  profile: 'Ricardo',
+  replyTo: null,
+  dbMode: firebaseConfig ? 'firebase' : 'local',
+  messages: load('so_nos_messages', [
+    { id: uid(), sender: 'Carol', text: 'Bem-vindo à nossa app 💜', createdAt: new Date().toISOString(), read: true }
+  ]),
+  shopping: load('so_nos_shopping', []),
+  events: load('so_nos_events', []),
+  memories: load('so_nos_memories', [])
 };
 
-let currentUserKey = null;
-let currentUser = null;
-let otherUserKey = null;
-let db = null;
-let selectedImageData = null;
-const sessionKey = 'so_nos_session_user';
-const themeKey = 'so_nos_theme_roxo';
+const els = {
+  views: document.querySelectorAll('.view'),
+  navBtns: document.querySelectorAll('.nav-btn'),
+  installBtn: document.getElementById('installBtn'),
+  activeProfile: document.getElementById('activeProfile'),
+  messageList: document.getElementById('messageList'),
+  chatForm: document.getElementById('chatForm'),
+  messageInput: document.getElementById('messageInput'),
+  imageInput: document.getElementById('imageInput'),
+  replyBar: document.getElementById('replyBar'),
+  replyPreview: document.getElementById('replyPreview'),
+  cancelReplyBtn: document.getElementById('cancelReplyBtn'),
+  shoppingForm: document.getElementById('shoppingForm'),
+  shoppingList: document.getElementById('shoppingList'),
+  clearBoughtBtn: document.getElementById('clearBoughtBtn'),
+  eventForm: document.getElementById('eventForm'),
+  eventList: document.getElementById('eventList'),
+  memoryForm: document.getElementById('memoryForm'),
+  memoryList: document.getElementById('memoryList'),
+  firebaseStatus: document.getElementById('firebaseStatus'),
+  resetDataBtn: document.getElementById('resetDataBtn'),
+  dashboardLastMessage: document.getElementById('dashboardLastMessage'),
+  dashboardMessageMeta: document.getElementById('dashboardMessageMeta'),
+  dashboardPendingItems: document.getElementById('dashboardPendingItems'),
+  dashboardLastItem: document.getElementById('dashboardLastItem'),
+  dashboardNextEvent: document.getElementById('dashboardNextEvent'),
+  dashboardNextEventDate: document.getElementById('dashboardNextEventDate'),
+  dashboardMemories: document.getElementById('dashboardMemories'),
+  dashboardLastMemory: document.getElementById('dashboardLastMemory')
+};
 
-function initTheme() {
-  const saved = localStorage.getItem(themeKey) || 'dark';
-  document.body.classList.toggle('light', saved === 'light');
-}
-
-function toggleTheme() {
-  const isLight = document.body.classList.toggle('light');
-  localStorage.setItem(themeKey, isLight ? 'light' : 'dark');
-}
-
-function hasFirebaseConfig() {
-  return firebaseConfig && firebaseConfig.apiKey && firebaseConfig.apiKey !== 'COLOCA_AQUI';
-}
-
-function bootFirebase() {
-  const app = initializeApp(firebaseConfig);
-  db = getFirestore(app);
-}
-
-function setUIBrand() {
-  document.title = APP_CONFIG.appName;
-  el.brandTitle.textContent = APP_CONFIG.appName;
-}
-
-function populateUsers() {
-  const entries = Object.entries(APP_CONFIG.users);
-  el.userSelect.innerHTML = entries.map(([key, value]) => `<option value="${key}">${value.name}</option>`).join('');
-  if (entries[0]) el.user1Label.textContent = entries[0][1].name;
-  if (entries[1]) el.user2Label.textContent = entries[1][1].name;
-}
-
-function avatarLetter(name) {
-  return (name || '?').trim().charAt(0).toUpperCase();
-}
-
-function setUserUI() {
-  const users = APP_CONFIG.users;
-  const keys = Object.keys(users);
-  otherUserKey = keys.find(k => k !== currentUserKey) || currentUserKey;
-  const otherUser = users[otherUserKey];
-
-  el.myName.textContent = currentUser.name;
-  el.otherName.textContent = otherUser.name;
-  el.myAvatar.textContent = avatarLetter(currentUser.name);
-  el.otherAvatar.textContent = avatarLetter(otherUser.name);
-}
-
-function showLogin() {
-  el.loginScreen.classList.remove('hidden');
-  el.app.classList.add('hidden');
-}
-
-function showApp() {
-  el.loginScreen.classList.add('hidden');
-  el.app.classList.remove('hidden');
-}
-
-function login() {
-  const selected = el.userSelect.value;
-  const pin = el.pinInput.value.trim();
-  const user = APP_CONFIG.users[selected];
-  if (!user) {
-    el.loginError.textContent = 'Utilizador inválido.';
-    return;
-  }
-  if (pin !== user.pin) {
-    el.loginError.textContent = 'PIN incorreto.';
-    return;
-  }
-  currentUserKey = selected;
-  currentUser = user;
-  localStorage.setItem(sessionKey, selected);
-  setUserUI();
-  showApp();
-  subscribeMessages();
-}
-
-function restoreSession() {
-  const saved = localStorage.getItem(sessionKey);
-  if (saved && APP_CONFIG.users[saved]) {
-    currentUserKey = saved;
-    currentUser = APP_CONFIG.users[saved];
-    setUserUI();
-    showApp();
-    subscribeMessages();
-  } else {
-    showLogin();
-  }
-}
-
-function formatTime(ts) {
-  if (!ts) return '';
-  const date = ts.toDate ? ts.toDate() : new Date(ts);
-  return date.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
-}
-
-function escapeHtml(text = '') {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
-
-function renderMessages(docs) {
-  el.messages.innerHTML = '';
-  docs.forEach((snap) => {
-    const msg = snap.data();
-    const mine = msg.senderKey === currentUserKey;
-    const row = document.createElement('div');
-    row.className = `message-row ${mine ? 'me' : 'other'}`;
-
-    const readBy = Array.isArray(msg.readBy) ? msg.readBy : [];
-    const seenByOther = readBy.includes(otherUserKey);
-
-    row.innerHTML = `
-      <div class="message-bubble">
-        ${msg.imageData ? `<img class="message-image" src="${msg.imageData}" alt="imagem enviada" />` : ''}
-        ${msg.text ? `<div class="message-text">${escapeHtml(msg.text)}</div>` : ''}
-        <div class="meta">
-          <span>${formatTime(msg.createdAt)}</span>
-          ${mine ? `<span class="${seenByOther ? 'read' : ''}">${seenByOther ? '✔✔' : '✔'}</span>` : ''}
-        </div>
-      </div>`;
-    el.messages.appendChild(row);
-
-    if (!mine && !readBy.includes(currentUserKey)) {
-      updateDoc(doc(db, 'rooms', APP_CONFIG.roomId, 'messages', snap.id), { readBy: [...readBy, currentUserKey] }).catch(() => {});
-    }
-  });
-  scrollToBottom();
-}
-
-function subscribeMessages() {
-  const q = query(collection(db, 'rooms', APP_CONFIG.roomId, 'messages'), orderBy('createdAt', 'asc'));
-  onSnapshot(q, (snapshot) => renderMessages(snapshot.docs), (error) => {
-    el.connectionText.textContent = 'Erro na ligação ao Firebase';
-    console.error(error);
-  });
-}
-
-async function compressImage(file) {
-  const img = await createImageBitmap(file);
-  const canvas = document.createElement('canvas');
-  const maxWidth = 1200;
-  const scale = Math.min(1, maxWidth / img.width);
-  canvas.width = Math.round(img.width * scale);
-  canvas.height = Math.round(img.height * scale);
-  const ctx = canvas.getContext('2d');
-  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-  return canvas.toDataURL('image/jpeg', 0.78);
-}
-
-async function sendMessage(event) {
-  event.preventDefault();
-  const text = el.messageInput.value.trim();
-  if (!text && !selectedImageData) return;
-
-  await addDoc(collection(db, 'rooms', APP_CONFIG.roomId, 'messages'), {
-    senderKey: currentUserKey,
-    senderName: currentUser.name,
-    text,
-    imageData: selectedImageData,
-    createdAt: serverTimestamp(),
-    readBy: [currentUserKey]
-  });
-
-  el.messageInput.value = '';
-  el.imageInput.value = '';
-  selectedImageData = null;
-  autoGrow();
-}
-
-function autoGrow() {
-  el.messageInput.style.height = 'auto';
-  el.messageInput.style.height = `${Math.min(el.messageInput.scrollHeight, 130)}px`;
-}
-
-function scrollToBottom() {
-  el.messages.scrollTop = el.messages.scrollHeight;
-}
-
-async function setupImage(event) {
-  const file = event.target.files?.[0];
-  if (!file) return;
-  selectedImageData = await compressImage(file);
-}
-
-function clearSession() {
-  localStorage.removeItem(sessionKey);
-  location.reload();
-}
-
-function guardConfig() {
-  if (!hasFirebaseConfig()) {
-    el.loginError.textContent = 'Falta configurar o Firebase no ficheiro firebase-config.js';
-    return false;
-  }
-  return true;
-}
-
-function registerSW() {
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js').catch(() => {});
-  }
-}
-
-function wire() {
-  el.loginBtn.addEventListener('click', () => {
-    if (!guardConfig()) return;
-    login();
-  });
-  el.pinInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      if (!guardConfig()) return;
-      login();
-    }
-  });
-  el.themeToggle.addEventListener('click', toggleTheme);
-  el.clearLocalBtn.addEventListener('click', clearSession);
-  el.composer.addEventListener('submit', sendMessage);
-  el.messageInput.addEventListener('input', autoGrow);
-  el.imageInput.addEventListener('change', setupImage);
-  el.scrollBottomBtn.addEventListener('click', scrollToBottom);
-}
-
-async function seedWelcomeMessage() {
-  const q = query(collection(db, 'rooms', APP_CONFIG.roomId, 'messages'), limit(1));
-  const snap = await getDocs(q);
-  if (snap.empty) {
-    await addDoc(collection(db, 'rooms', APP_CONFIG.roomId, 'messages'), {
-      senderKey: 'system',
-      senderName: 'Sistema',
-      text: 'Chat pronto. Já podem falar os dois em tempo real. ❤',
-      imageData: null,
-      createdAt: serverTimestamp(),
-      readBy: []
-    });
-  }
-}
-
-function init() {
-  initTheme();
-  setUIBrand();
-  populateUsers();
-  wire();
-  registerSW();
-
-  if (hasFirebaseConfig()) {
-    bootFirebase();
-    seedWelcomeMessage().finally(restoreSession);
-  } else {
-    showLogin();
-  }
-}
+let deferredPrompt = null;
 
 init();
+
+function init() {
+  bindNav();
+  bindChat();
+  bindShopping();
+  bindEvents();
+  bindMemories();
+  bindSettings();
+  bindPWA();
+  els.activeProfile.value = state.profile;
+  els.activeProfile.addEventListener('change', e => state.profile = e.target.value);
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+  renderAll();
+}
+
+function bindNav() {
+  els.navBtns.forEach(btn => btn.addEventListener('click', () => {
+    const name = btn.dataset.view;
+    els.navBtns.forEach(b => b.classList.toggle('active', b === btn));
+    els.views.forEach(v => v.classList.toggle('active', v.id === `view-${name}`));
+  }));
+}
+
+function bindChat() {
+  els.chatForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    const text = els.messageInput.value.trim();
+    const file = els.imageInput.files[0];
+    if (!text && !file) return;
+
+    const message = {
+      id: uid(),
+      sender: state.profile,
+      text,
+      createdAt: new Date().toISOString(),
+      read: false,
+      replyTo: state.replyTo
+    };
+
+    if (file) {
+      message.image = await fileToDataURL(file);
+    }
+
+    state.messages.push(message);
+    persist('so_nos_messages', state.messages);
+    els.chatForm.reset();
+    clearReply();
+    renderMessages();
+    renderDashboard();
+  });
+
+  els.cancelReplyBtn.addEventListener('click', clearReply);
+}
+
+function bindShopping() {
+  els.shoppingForm.addEventListener('submit', e => {
+    e.preventDefault();
+    const item = {
+      id: uid(),
+      name: val('itemName'),
+      qty: Number(val('itemQty')),
+      category: val('itemCategory'),
+      store: val('itemStore'),
+      owner: val('itemOwner'),
+      notes: val('itemNotes'),
+      bought: false,
+      createdAt: new Date().toISOString()
+    };
+    state.shopping.unshift(item);
+    persist('so_nos_shopping', state.shopping);
+    els.shoppingForm.reset();
+    document.getElementById('itemQty').value = 1;
+    renderShopping();
+    renderDashboard();
+  });
+
+  els.clearBoughtBtn.addEventListener('click', () => {
+    state.shopping = state.shopping.filter(i => !i.bought);
+    persist('so_nos_shopping', state.shopping);
+    renderShopping();
+    renderDashboard();
+  });
+}
+
+function bindEvents() {
+  els.eventForm.addEventListener('submit', e => {
+    e.preventDefault();
+    const event = {
+      id: uid(),
+      title: val('eventTitle'),
+      date: val('eventDate'),
+      type: val('eventType'),
+      note: val('eventNote')
+    };
+    state.events.push(event);
+    state.events.sort((a,b) => a.date.localeCompare(b.date));
+    persist('so_nos_events', state.events);
+    els.eventForm.reset();
+    renderEvents();
+    renderDashboard();
+  });
+}
+
+function bindMemories() {
+  els.memoryForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    const file = document.getElementById('memoryImage').files[0];
+    const memory = {
+      id: uid(),
+      title: val('memoryTitle'),
+      text: val('memoryText'),
+      date: val('memoryDate'),
+      image: file ? await fileToDataURL(file) : null
+    };
+    state.memories.unshift(memory);
+    persist('so_nos_memories', state.memories);
+    els.memoryForm.reset();
+    renderMemories();
+    renderDashboard();
+  });
+}
+
+function bindSettings() {
+  els.resetDataBtn.addEventListener('click', () => {
+    if (!confirm('Tens a certeza que queres limpar os dados locais desta app?')) return;
+    ['so_nos_messages','so_nos_shopping','so_nos_events','so_nos_memories'].forEach(k => localStorage.removeItem(k));
+    location.reload();
+  });
+}
+
+function bindPWA() {
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    deferredPrompt = e;
+    els.installBtn.classList.remove('hidden');
+  });
+  els.installBtn.addEventListener('click', async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    els.installBtn.classList.add('hidden');
+  });
+}
+
+function renderAll() {
+  els.firebaseStatus.textContent = state.dbMode === 'firebase' ? 'Firebase' : 'Local';
+  renderMessages();
+  renderShopping();
+  renderEvents();
+  renderMemories();
+  renderDashboard();
+}
+
+function renderMessages() {
+  els.messageList.innerHTML = '';
+  state.messages.forEach(msg => {
+    const wrap = document.createElement('article');
+    wrap.className = `message ${msg.sender === state.profile ? 'mine' : ''}`;
+    const reply = msg.replyTo ? `<div class="reply-chip">A responder a: ${escapeHtml(msg.replyTo.sender)} — ${escapeHtml(msg.replyTo.text || 'Imagem')}</div>` : '';
+    const image = msg.image ? `<img src="${msg.image}" alt="Imagem enviada" />` : '';
+    wrap.innerHTML = `
+      <div class="sender">${escapeHtml(msg.sender)}</div>
+      ${reply}
+      ${msg.text ? `<div>${escapeHtml(msg.text)}</div>` : ''}
+      ${image}
+      <div class="meta">
+        <span>${formatDateTime(msg.createdAt)}</span>
+        <span>${msg.read ? '✔✔' : '✔'}</span>
+      </div>
+      <div class="message-actions">
+        <button class="mini-btn" data-action="reply" data-id="${msg.id}">Responder</button>
+        <button class="mini-btn" data-action="toggle-read" data-id="${msg.id}">${msg.read ? 'Marcar por ler' : 'Marcar lida'}</button>
+      </div>
+    `;
+    els.messageList.appendChild(wrap);
+  });
+  els.messageList.querySelectorAll('.mini-btn').forEach(btn => btn.addEventListener('click', onMessageAction));
+  els.messageList.scrollTop = els.messageList.scrollHeight;
+}
+
+function onMessageAction(e) {
+  const { action, id } = e.target.dataset;
+  const msg = state.messages.find(m => m.id === id);
+  if (!msg) return;
+  if (action === 'reply') {
+    state.replyTo = { sender: msg.sender, text: msg.text || 'Imagem' };
+    els.replyPreview.textContent = `${msg.sender}: ${msg.text || 'Imagem'}`;
+    els.replyBar.classList.remove('hidden');
+    els.messageInput.focus();
+  }
+  if (action === 'toggle-read') {
+    msg.read = !msg.read;
+    persist('so_nos_messages', state.messages);
+    renderMessages();
+    renderDashboard();
+  }
+}
+
+function clearReply() {
+  state.replyTo = null;
+  els.replyBar.classList.add('hidden');
+  els.replyPreview.textContent = '';
+}
+
+function renderShopping() {
+  els.shoppingList.innerHTML = state.shopping.length ? '' : empty('Ainda não há itens na lista.');
+  state.shopping.forEach(item => {
+    const el = document.createElement('article');
+    el.className = 'card list-card';
+    el.innerHTML = `
+      <div class="list-actions">
+        <h3>${escapeHtml(item.name)} x${item.qty}</h3>
+        <span class="badge ${item.bought ? 'success' : 'primary'}">${item.bought ? 'Comprado' : 'Pendente'}</span>
+      </div>
+      <div class="badges">
+        <span class="badge">${escapeHtml(item.category)}</span>
+        <span class="badge">${escapeHtml(item.store)}</span>
+        <span class="badge">Adicionado por ${escapeHtml(item.owner)}</span>
+      </div>
+      ${item.notes ? `<p>${escapeHtml(item.notes)}</p>` : ''}
+      <div class="list-actions">
+        <button class="ghost-btn small" data-shop-action="toggle" data-id="${item.id}">${item.bought ? 'Marcar pendente' : 'Marcar comprado'}</button>
+        <button class="danger-btn small" data-shop-action="delete" data-id="${item.id}">Apagar</button>
+      </div>
+    `;
+    els.shoppingList.appendChild(el);
+  });
+  els.shoppingList.querySelectorAll('[data-shop-action]').forEach(btn => btn.addEventListener('click', onShoppingAction));
+}
+
+function onShoppingAction(e) {
+  const { shopAction, id } = e.target.dataset;
+  const item = state.shopping.find(i => i.id === id);
+  if (!item) return;
+  if (shopAction === 'toggle') item.bought = !item.bought;
+  if (shopAction === 'delete') state.shopping = state.shopping.filter(i => i.id !== id);
+  persist('so_nos_shopping', state.shopping);
+  renderShopping();
+  renderDashboard();
+}
+
+function renderEvents() {
+  els.eventList.innerHTML = state.events.length ? '' : empty('Ainda não há eventos marcados.');
+  state.events.forEach(event => {
+    const el = document.createElement('article');
+    el.className = 'card list-card';
+    el.innerHTML = `
+      <div class="list-actions">
+        <h3>${escapeHtml(event.title)}</h3>
+        <span class="badge primary">${escapeHtml(event.type)}</span>
+      </div>
+      <p>${formatDate(event.date)}</p>
+      ${event.note ? `<p>${escapeHtml(event.note)}</p>` : ''}
+      <div class="list-actions">
+        <span></span>
+        <button class="danger-btn small" data-event-delete="${event.id}">Apagar</button>
+      </div>
+    `;
+    els.eventList.appendChild(el);
+  });
+  els.eventList.querySelectorAll('[data-event-delete]').forEach(btn => btn.addEventListener('click', e => {
+    state.events = state.events.filter(ev => ev.id !== e.target.dataset.eventDelete);
+    persist('so_nos_events', state.events);
+    renderEvents();
+    renderDashboard();
+  }));
+}
+
+function renderMemories() {
+  els.memoryList.innerHTML = state.memories.length ? '' : empty('Ainda não há memórias guardadas.');
+  state.memories.forEach(memory => {
+    const el = document.createElement('article');
+    el.className = 'card list-card';
+    el.innerHTML = `
+      <div class="list-actions">
+        <h3>${escapeHtml(memory.title)}</h3>
+        <span class="badge primary">${formatDate(memory.date)}</span>
+      </div>
+      ${memory.image ? `<img class="memory-image" src="${memory.image}" alt="${escapeHtml(memory.title)}" />` : ''}
+      ${memory.text ? `<p>${escapeHtml(memory.text)}</p>` : ''}
+      <div class="list-actions">
+        <span></span>
+        <button class="danger-btn small" data-memory-delete="${memory.id}">Apagar</button>
+      </div>
+    `;
+    els.memoryList.appendChild(el);
+  });
+  els.memoryList.querySelectorAll('[data-memory-delete]').forEach(btn => btn.addEventListener('click', e => {
+    state.memories = state.memories.filter(mem => mem.id !== e.target.dataset.memoryDelete);
+    persist('so_nos_memories', state.memories);
+    renderMemories();
+    renderDashboard();
+  }));
+}
+
+function renderDashboard() {
+  const lastMsg = state.messages[state.messages.length - 1];
+  els.dashboardLastMessage.textContent = lastMsg ? (lastMsg.text || 'Imagem enviada') : 'Sem mensagens ainda';
+  els.dashboardMessageMeta.textContent = lastMsg ? `${lastMsg.sender} · ${formatDateTime(lastMsg.createdAt)}` : 'Envia a primeira mensagem';
+
+  const pending = state.shopping.filter(i => !i.bought);
+  els.dashboardPendingItems.textContent = pending.length;
+  els.dashboardLastItem.textContent = pending[0] ? `${pending[0].name} · ${pending[0].store}` : 'Lista vazia';
+
+  const nextEvent = [...state.events].filter(e => e.date >= today()).sort((a,b) => a.date.localeCompare(b.date))[0];
+  els.dashboardNextEvent.textContent = nextEvent ? nextEvent.title : 'Sem próximo evento';
+  els.dashboardNextEventDate.textContent = nextEvent ? `${formatDate(nextEvent.date)} · ${nextEvent.type}` : 'Adiciona um momento especial';
+
+  els.dashboardMemories.textContent = state.memories.length;
+  els.dashboardLastMemory.textContent = state.memories[0] ? `${state.memories[0].title} · ${formatDate(state.memories[0].date)}` : 'Guarda o vosso primeiro momento';
+}
+
+function val(id) { return document.getElementById(id).value.trim(); }
+function uid() { return Math.random().toString(36).slice(2, 10); }
+function load(key, fallback) { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } }
+function persist(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
+function empty(text) { return `<article class="card list-card"><p>${text}</p></article>`; }
+function today() { return new Date().toISOString().slice(0,10); }
+function formatDate(date) { return new Date(date + 'T12:00:00').toLocaleDateString('pt-PT', { day:'2-digit', month:'2-digit', year:'numeric' }); }
+function formatDateTime(date) { return new Date(date).toLocaleString('pt-PT', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }); }
+function escapeHtml(str='') { return str.replace(/[&<>'"]/g, tag => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[tag])); }
+function fileToDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}

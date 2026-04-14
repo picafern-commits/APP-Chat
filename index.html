@@ -2,109 +2,212 @@
 <html lang="pt-PT">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-  <meta name="theme-color" content="#0b141a" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Só Nos" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#6d28d9" />
   <title>Só Nos</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div id="app" class="app-shell hidden">
-    <aside class="sidebar">
-      <div class="brand">
-        <div class="brand-badge">❤</div>
-        <div>
-          <h1 id="brandTitle">Só Nos</h1>
-          <p>Chat privado</p>
-        </div>
+  <div id="app" class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">App do casal</p>
+        <h1>Só Nos</h1>
       </div>
+      <button id="installBtn" class="ghost-btn hidden">Instalar</button>
+    </header>
 
-      <div class="profile-card">
-        <div class="avatar" id="myAvatar">R</div>
-        <div>
-          <strong id="myName">Ricardo</strong>
-          <p id="statusText">Ligado</p>
-        </div>
-      </div>
-
-      <div class="sidebar-actions">
-        <button id="themeToggle" class="ghost-btn">🌙 Tema</button>
-        <button id="clearLocalBtn" class="ghost-btn danger">Limpar sessão</button>
-      </div>
-
-      <div class="sidebar-box">
-        <h3>Utilizadores</h3>
-        <div class="mini-user"><span class="dot online"></span><span id="user1Label">Ricardo</span></div>
-        <div class="mini-user"><span class="dot online"></span><span id="user2Label">Carol</span></div>
-      </div>
-
-      <div class="sidebar-box small">
-        <h3>Instalar</h3>
-        <p>No iPhone abre no Safari e usa <b>Partilhar → Adicionar ao ecrã principal</b>.</p>
-      </div>
-    </aside>
-
-    <main class="chat-area">
-      <header class="chat-header">
-        <div class="chat-contact">
-          <div class="avatar secondary" id="otherAvatar">C</div>
+    <main class="main-content">
+      <section id="view-dashboard" class="view active">
+        <div class="hero-card card gradient">
           <div>
-            <h2 id="otherName">Carol</h2>
-            <p id="connectionText">Sincronização em tempo real</p>
+            <p class="eyebrow">Bem-vindos</p>
+            <h2>Ricardo & Carol</h2>
+            <p>Um espaço privado para conversar, organizar compras, marcar momentos e guardar memórias.</p>
+          </div>
+          <div class="hero-badge">💜</div>
+        </div>
+
+        <div class="grid two">
+          <article class="card stat-card">
+            <p class="eyebrow">Chat</p>
+            <h3 id="dashboardLastMessage">Sem mensagens ainda</h3>
+            <span id="dashboardMessageMeta">Envia a primeira mensagem</span>
+          </article>
+          <article class="card stat-card">
+            <p class="eyebrow">Compras</p>
+            <h3><span id="dashboardPendingItems">0</span> itens por comprar</h3>
+            <span id="dashboardLastItem">Lista vazia</span>
+          </article>
+          <article class="card stat-card">
+            <p class="eyebrow">Agenda</p>
+            <h3 id="dashboardNextEvent">Sem próximo evento</h3>
+            <span id="dashboardNextEventDate">Adiciona um momento especial</span>
+          </article>
+          <article class="card stat-card">
+            <p class="eyebrow">Memórias</p>
+            <h3><span id="dashboardMemories">0</span> memórias</h3>
+            <span id="dashboardLastMemory">Guarda o vosso primeiro momento</span>
+          </article>
+        </div>
+      </section>
+
+      <section id="view-chat" class="view">
+        <div class="card section-header">
+          <div>
+            <p class="eyebrow">Conversa</p>
+            <h2>Chat privado</h2>
+          </div>
+          <select id="activeProfile" class="select compact">
+            <option value="Ricardo">Ricardo</option>
+            <option value="Carol">Carol</option>
+          </select>
+        </div>
+
+        <div class="chat-wrap card">
+          <div id="messageList" class="message-list"></div>
+          <div id="replyBar" class="reply-bar hidden">
+            <div>
+              <strong>A responder a:</strong>
+              <span id="replyPreview"></span>
+            </div>
+            <button id="cancelReplyBtn" class="ghost-btn small">Cancelar</button>
+          </div>
+          <form id="chatForm" class="chat-form">
+            <input id="messageInput" type="text" placeholder="Escreve uma mensagem..." maxlength="500" />
+            <label class="file-btn">
+              📷
+              <input id="imageInput" type="file" accept="image/*" hidden />
+            </label>
+            <button type="submit" class="primary-btn">Enviar</button>
+          </form>
+        </div>
+      </section>
+
+      <section id="view-shopping" class="view">
+        <div class="card section-header">
+          <div>
+            <p class="eyebrow">Organização</p>
+            <h2>Lista de compras</h2>
+          </div>
+          <button id="clearBoughtBtn" class="ghost-btn">Limpar comprados</button>
+        </div>
+
+        <form id="shoppingForm" class="card stack-form">
+          <input id="itemName" type="text" placeholder="Ex: Leite" required />
+          <div class="grid two tight">
+            <input id="itemQty" type="number" min="1" value="1" required />
+            <select id="itemCategory" class="select">
+              <option>Mercearia</option>
+              <option>Casa</option>
+              <option>Higiene</option>
+              <option>Farmácia</option>
+              <option>Outros</option>
+            </select>
+          </div>
+          <div class="grid two tight">
+            <select id="itemStore" class="select">
+              <option>Continente</option>
+              <option>Pingo Doce</option>
+              <option>Lidl</option>
+              <option>Mercadona</option>
+              <option>Outro</option>
+            </select>
+            <select id="itemOwner" class="select">
+              <option>Ricardo</option>
+              <option>Carol</option>
+            </select>
+          </div>
+          <input id="itemNotes" type="text" placeholder="Notas opcionais" />
+          <button class="primary-btn" type="submit">Adicionar item</button>
+        </form>
+
+        <div id="shoppingList" class="stack-list"></div>
+      </section>
+
+      <section id="view-calendar" class="view">
+        <div class="card section-header">
+          <div>
+            <p class="eyebrow">Momentos</p>
+            <h2>Agenda do casal</h2>
           </div>
         </div>
-        <div class="header-actions">
-          <button id="scrollBottomBtn" class="icon-btn" title="Ir para baixo">↓</button>
+
+        <form id="eventForm" class="card stack-form">
+          <input id="eventTitle" type="text" placeholder="Título do evento" required />
+          <div class="grid two tight">
+            <input id="eventDate" type="date" required />
+            <select id="eventType" class="select">
+              <option>Jantar</option>
+              <option>Viagem</option>
+              <option>Aniversário</option>
+              <option>Saída</option>
+              <option>Outro</option>
+            </select>
+          </div>
+          <input id="eventNote" type="text" placeholder="Nota rápida" />
+          <button class="primary-btn" type="submit">Adicionar evento</button>
+        </form>
+
+        <div id="eventList" class="stack-list"></div>
+      </section>
+
+      <section id="view-memories" class="view">
+        <div class="card section-header">
+          <div>
+            <p class="eyebrow">Especial</p>
+            <h2>Memórias</h2>
+          </div>
         </div>
-      </header>
 
-      <section id="messages" class="messages"></section>
+        <form id="memoryForm" class="card stack-form">
+          <input id="memoryTitle" type="text" placeholder="Título da memória" required />
+          <textarea id="memoryText" rows="4" placeholder="Descreve o momento..."></textarea>
+          <input id="memoryDate" type="date" required />
+          <input id="memoryImage" type="file" accept="image/*" />
+          <button class="primary-btn" type="submit">Guardar memória</button>
+        </form>
 
-      <div id="typingHint" class="typing-hint hidden">A preparar mensagem…</div>
+        <div id="memoryList" class="stack-list"></div>
+      </section>
 
-      <form id="composer" class="composer">
-        <label for="imageInput" class="attach-btn">＋</label>
-        <input id="imageInput" type="file" accept="image/*" hidden />
-        <textarea id="messageInput" rows="1" placeholder="Escreve uma mensagem..."></textarea>
-        <button id="sendBtn" type="submit" class="send-btn">Enviar</button>
-      </form>
+      <section id="view-settings" class="view">
+        <div class="card section-header">
+          <div>
+            <p class="eyebrow">Definições</p>
+            <h2>Configuração</h2>
+          </div>
+        </div>
+
+        <div class="card settings-card">
+          <div class="setting-row">
+            <div>
+              <h3>Modo Firebase</h3>
+              <p>Ativa quando preencheres o ficheiro firebase-config.js.</p>
+            </div>
+            <span id="firebaseStatus" class="status-pill">Local</span>
+          </div>
+          <div class="setting-row">
+            <div>
+              <h3>Limpar dados locais</h3>
+              <p>Apaga mensagens, compras, agenda e memórias deste dispositivo.</p>
+            </div>
+            <button id="resetDataBtn" class="danger-btn">Limpar</button>
+          </div>
+        </div>
+      </section>
     </main>
+
+    <nav class="bottom-nav">
+      <button class="nav-btn active" data-view="dashboard">🏠<span>Início</span></button>
+      <button class="nav-btn" data-view="chat">💬<span>Chat</span></button>
+      <button class="nav-btn" data-view="shopping">🛒<span>Compras</span></button>
+      <button class="nav-btn" data-view="calendar">📅<span>Agenda</span></button>
+      <button class="nav-btn" data-view="memories">❤️<span>Memórias</span></button>
+      <button class="nav-btn" data-view="settings">⚙️<span>Def.</span></button>
+    </nav>
   </div>
-
-  <section id="loginScreen" class="login-screen">
-    <div class="login-card">
-      <div class="login-logo">❤</div>
-      <h1>Só Nos</h1>
-      <p class="subtitle">Chat privado para dois</p>
-
-      <div class="form-group">
-        <label for="userSelect">Entrar como</label>
-        <select id="userSelect">
-          <option value="ricardo">Ricardo</option>
-          <option value="carol">Carol</option>
-        </select>
-      </div>
-
-      <div class="form-group">
-        <label for="pinInput">PIN</label>
-        <input id="pinInput" type="password" inputmode="numeric" maxlength="6" placeholder="Introduz o PIN" />
-      </div>
-
-      <button id="loginBtn" class="primary-btn">Entrar</button>
-      <p id="loginError" class="error-text"></p>
-
-      <details class="setup-details">
-        <summary>Primeira configuração</summary>
-        <div class="setup-box">
-          <p>Abre o ficheiro <b>firebase-config.js</b> e cola a tua configuração Firebase.</p>
-          <p>Podes também mudar nomes e PINs nesse ficheiro.</p>
-        </div>
-      </details>
-    </div>
-  </section>
 
   <script type="module" src="app.js"></script>
 </body>
