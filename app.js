@@ -1,9 +1,37 @@
 import firebaseConfig from './firebase-config.js';
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  deleteDoc,
+  doc,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  updateDoc
+} from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js';
+import {
+  getStorage,
+  ref,
+  uploadBytes,
+  getDownloadURL
+} from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js';
+
+const COLLECTIONS = {
+  messages: 'messages',
+  shopping: 'shopping',
+  events: 'events',
+  memories: 'memories'
+};
 
 const state = {
   profile: 'Ricardo',
   replyTo: null,
   dbMode: firebaseConfig ? 'firebase' : 'local',
+  firebaseReady: false,
+  unsubscribers: [],
   messages: load('so_nos_messages', [
     { id: uid(), sender: 'Carol', text: 'Bem-vindo à nossa app 💜', createdAt: new Date().toISOString(), read: true }
   ]),
@@ -44,10 +72,12 @@ const els = {
 };
 
 let deferredPrompt = null;
+let db = null;
+let storage = null;
 
 init();
 
-function init() {
+async function init() {
   bindNav();
   bindChat();
   bindShopping();
@@ -55,10 +85,34 @@ function init() {
   bindMemories();
   bindSettings();
   bindPWA();
+
   els.activeProfile.value = state.profile;
   els.activeProfile.addEventListener('change', e => state.profile = e.target.value);
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  }
+
+  if (isFirebaseConfigured()) {
+    try {
+      const app = initializeApp(firebaseConfig);
+      db = getFirestore(app);
+      storage = getStorage(app);
+      state.firebaseReady = true;
+      state.dbMode = 'firebase';
+      attachRealtimeListeners();
+    } catch (error) {
+      console.error('Erro ao iniciar Firebase:', error);
+      state.firebaseReady = false;
+      state.dbMode = 'local';
+    }
+  }
+
   renderAll();
+}
+
+function isFirebaseConfigured() {
+  return !!(firebaseConfig && firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.appId);
 }
 
 function bindNav() {
@@ -77,34 +131,46 @@ function bindChat() {
     if (!text && !file) return;
 
     const message = {
-      id: uid(),
       sender: state.profile,
       text,
-      createdAt: new Date().toISOString(),
       read: false,
-      replyTo: state.replyTo
+      createdAt: new Date().toISOString(),
+      replyTo: state.replyTo,
+      image: null
     };
 
-    if (file) {
-      message.image = await fileToDataURL(file);
-    }
+    try {
+      if (file) {
+        message.image = await uploadImage(file, `chat-images/${Date.now()}-${safeName(file.name)}`);
+      }
 
-    state.messages.push(message);
-    persist('so_nos_messages', state.messages);
-    els.chatForm.reset();
-    clearReply();
-    renderMessages();
-    renderDashboard();
+      if (state.firebaseReady) {
+        await addDoc(collection(db, COLLECTIONS.messages), {
+          ...message,
+          createdAt: serverTimestamp()
+        });
+      } else {
+        state.messages.push({ id: uid(), ...message });
+        persist('so_nos_messages', state.messages);
+        renderMessages();
+        renderDashboard();
+      }
+
+      els.chatForm.reset();
+      clearReply();
+    } catch (error) {
+      console.error('Erro ao enviar mensagem:', error);
+      alert('Não foi possível enviar a mensagem.');
+    }
   });
 
   els.cancelReplyBtn.addEventListener('click', clearReply);
 }
 
 function bindShopping() {
-  els.shoppingForm.addEventListener('submit', e => {
+  els.shoppingForm.addEventListener('submit', async e => {
     e.preventDefault();
     const item = {
-      id: uid(),
       name: val('itemName'),
       qty: Number(val('itemQty')),
       category: val('itemCategory'),
@@ -114,38 +180,70 @@ function bindShopping() {
       bought: false,
       createdAt: new Date().toISOString()
     };
-    state.shopping.unshift(item);
-    persist('so_nos_shopping', state.shopping);
-    els.shoppingForm.reset();
-    document.getElementById('itemQty').value = 1;
-    renderShopping();
-    renderDashboard();
+
+    try {
+      if (state.firebaseReady) {
+        await addDoc(collection(db, COLLECTIONS.shopping), {
+          ...item,
+          createdAt: serverTimestamp()
+        });
+      } else {
+        state.shopping.unshift({ id: uid(), ...item });
+        persist('so_nos_shopping', state.shopping);
+        renderShopping();
+        renderDashboard();
+      }
+
+      els.shoppingForm.reset();
+      document.getElementById('itemQty').value = 1;
+    } catch (error) {
+      console.error('Erro ao adicionar item:', error);
+      alert('Não foi possível adicionar o item.');
+    }
   });
 
-  els.clearBoughtBtn.addEventListener('click', () => {
-    state.shopping = state.shopping.filter(i => !i.bought);
-    persist('so_nos_shopping', state.shopping);
-    renderShopping();
-    renderDashboard();
+  els.clearBoughtBtn.addEventListener('click', async () => {
+    if (state.firebaseReady) {
+      const boughtItems = state.shopping.filter(i => i.bought);
+      await Promise.all(boughtItems.map(i => deleteDoc(doc(db, COLLECTIONS.shopping, i.id))));
+    } else {
+      state.shopping = state.shopping.filter(i => !i.bought);
+      persist('so_nos_shopping', state.shopping);
+      renderShopping();
+      renderDashboard();
+    }
   });
 }
 
 function bindEvents() {
-  els.eventForm.addEventListener('submit', e => {
+  els.eventForm.addEventListener('submit', async e => {
     e.preventDefault();
     const event = {
-      id: uid(),
       title: val('eventTitle'),
       date: val('eventDate'),
       type: val('eventType'),
-      note: val('eventNote')
+      note: val('eventNote'),
+      createdAt: new Date().toISOString()
     };
-    state.events.push(event);
-    state.events.sort((a,b) => a.date.localeCompare(b.date));
-    persist('so_nos_events', state.events);
-    els.eventForm.reset();
-    renderEvents();
-    renderDashboard();
+
+    try {
+      if (state.firebaseReady) {
+        await addDoc(collection(db, COLLECTIONS.events), {
+          ...event,
+          createdAt: serverTimestamp()
+        });
+      } else {
+        state.events.push({ id: uid(), ...event });
+        state.events.sort((a, b) => a.date.localeCompare(b.date));
+        persist('so_nos_events', state.events);
+        renderEvents();
+        renderDashboard();
+      }
+      els.eventForm.reset();
+    } catch (error) {
+      console.error('Erro ao adicionar evento:', error);
+      alert('Não foi possível guardar o evento.');
+    }
   });
 }
 
@@ -154,25 +252,47 @@ function bindMemories() {
     e.preventDefault();
     const file = document.getElementById('memoryImage').files[0];
     const memory = {
-      id: uid(),
       title: val('memoryTitle'),
       text: val('memoryText'),
       date: val('memoryDate'),
-      image: file ? await fileToDataURL(file) : null
+      image: null,
+      createdAt: new Date().toISOString()
     };
-    state.memories.unshift(memory);
-    persist('so_nos_memories', state.memories);
-    els.memoryForm.reset();
-    renderMemories();
-    renderDashboard();
+
+    try {
+      if (file) {
+        memory.image = await uploadImage(file, `chat-images/memories-${Date.now()}-${safeName(file.name)}`);
+      }
+
+      if (state.firebaseReady) {
+        await addDoc(collection(db, COLLECTIONS.memories), {
+          ...memory,
+          createdAt: serverTimestamp()
+        });
+      } else {
+        state.memories.unshift({ id: uid(), ...memory });
+        persist('so_nos_memories', state.memories);
+        renderMemories();
+        renderDashboard();
+      }
+      els.memoryForm.reset();
+    } catch (error) {
+      console.error('Erro ao guardar memória:', error);
+      alert('Não foi possível guardar a memória.');
+    }
   });
 }
 
 function bindSettings() {
-  els.resetDataBtn.addEventListener('click', () => {
+  els.resetDataBtn.addEventListener('click', async () => {
     if (!confirm('Tens a certeza que queres limpar os dados locais desta app?')) return;
-    ['so_nos_messages','so_nos_shopping','so_nos_events','so_nos_memories'].forEach(k => localStorage.removeItem(k));
-    location.reload();
+    ['so_nos_messages', 'so_nos_shopping', 'so_nos_events', 'so_nos_memories'].forEach(k => localStorage.removeItem(k));
+    if (!state.firebaseReady) {
+      location.reload();
+      return;
+    }
+    alert('Os dados Firebase não são apagados por este botão. Só os dados locais foram limpos.');
+    renderAll();
   });
 }
 
@@ -182,6 +302,7 @@ function bindPWA() {
     deferredPrompt = e;
     els.installBtn.classList.remove('hidden');
   });
+
   els.installBtn.addEventListener('click', async () => {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
@@ -191,8 +312,88 @@ function bindPWA() {
   });
 }
 
+function attachRealtimeListeners() {
+  detachRealtimeListeners();
+
+  state.unsubscribers.push(
+    onSnapshot(
+      query(collection(db, COLLECTIONS.messages), orderBy('createdAt')),
+      snapshot => {
+        state.messages = snapshot.docs.map(toAppDoc);
+        persist('so_nos_messages', state.messages);
+        renderMessages();
+        renderDashboard();
+      },
+      error => console.error('Erro realtime messages:', error)
+    )
+  );
+
+  state.unsubscribers.push(
+    onSnapshot(
+      query(collection(db, COLLECTIONS.shopping), orderBy('createdAt', 'desc')),
+      snapshot => {
+        state.shopping = snapshot.docs.map(toAppDoc);
+        persist('so_nos_shopping', state.shopping);
+        renderShopping();
+        renderDashboard();
+      },
+      error => console.error('Erro realtime shopping:', error)
+    )
+  );
+
+  state.unsubscribers.push(
+    onSnapshot(
+      query(collection(db, COLLECTIONS.events), orderBy('date')),
+      snapshot => {
+        state.events = snapshot.docs.map(toAppDoc);
+        persist('so_nos_events', state.events);
+        renderEvents();
+        renderDashboard();
+      },
+      error => console.error('Erro realtime events:', error)
+    )
+  );
+
+  state.unsubscribers.push(
+    onSnapshot(
+      query(collection(db, COLLECTIONS.memories), orderBy('createdAt', 'desc')),
+      snapshot => {
+        state.memories = snapshot.docs.map(toAppDoc);
+        persist('so_nos_memories', state.memories);
+        renderMemories();
+        renderDashboard();
+      },
+      error => console.error('Erro realtime memories:', error)
+    )
+  );
+}
+
+function detachRealtimeListeners() {
+  state.unsubscribers.forEach(unsub => {
+    try { unsub(); } catch {}
+  });
+  state.unsubscribers = [];
+}
+
+function toAppDoc(snapshotDoc) {
+  const data = snapshotDoc.data();
+  return {
+    id: snapshotDoc.id,
+    ...data,
+    createdAt: normalizeDate(data.createdAt),
+    date: data.date || ''
+  };
+}
+
+function normalizeDate(value) {
+  if (!value) return new Date().toISOString();
+  if (typeof value === 'string') return value;
+  if (typeof value.toDate === 'function') return value.toDate().toISOString();
+  return new Date(value).toISOString();
+}
+
 function renderAll() {
-  els.firebaseStatus.textContent = state.dbMode === 'firebase' ? 'Firebase' : 'Local';
+  els.firebaseStatus.textContent = state.firebaseReady ? 'Firebase ligado' : 'Local';
   renderMessages();
   renderShopping();
   renderEvents();
@@ -219,6 +420,7 @@ function renderMessages() {
       <div class="message-actions">
         <button class="mini-btn" data-action="reply" data-id="${msg.id}">Responder</button>
         <button class="mini-btn" data-action="toggle-read" data-id="${msg.id}">${msg.read ? 'Marcar por ler' : 'Marcar lida'}</button>
+        <button class="mini-btn danger" data-action="delete" data-id="${msg.id}">Apagar</button>
       </div>
     `;
     els.messageList.appendChild(wrap);
@@ -227,21 +429,37 @@ function renderMessages() {
   els.messageList.scrollTop = els.messageList.scrollHeight;
 }
 
-function onMessageAction(e) {
+async function onMessageAction(e) {
   const { action, id } = e.target.dataset;
   const msg = state.messages.find(m => m.id === id);
   if (!msg) return;
+
   if (action === 'reply') {
     state.replyTo = { sender: msg.sender, text: msg.text || 'Imagem' };
     els.replyPreview.textContent = `${msg.sender}: ${msg.text || 'Imagem'}`;
     els.replyBar.classList.remove('hidden');
     els.messageInput.focus();
+    return;
   }
-  if (action === 'toggle-read') {
-    msg.read = !msg.read;
-    persist('so_nos_messages', state.messages);
-    renderMessages();
-    renderDashboard();
+
+  try {
+    if (state.firebaseReady) {
+      if (action === 'toggle-read') {
+        await updateDoc(doc(db, COLLECTIONS.messages, id), { read: !msg.read });
+      }
+      if (action === 'delete') {
+        await deleteDoc(doc(db, COLLECTIONS.messages, id));
+      }
+    } else {
+      if (action === 'toggle-read') msg.read = !msg.read;
+      if (action === 'delete') state.messages = state.messages.filter(m => m.id !== id);
+      persist('so_nos_messages', state.messages);
+      renderMessages();
+      renderDashboard();
+    }
+  } catch (error) {
+    console.error('Erro ao atualizar mensagem:', error);
+    alert('Não foi possível atualizar a mensagem.');
   }
 }
 
@@ -277,15 +495,26 @@ function renderShopping() {
   els.shoppingList.querySelectorAll('[data-shop-action]').forEach(btn => btn.addEventListener('click', onShoppingAction));
 }
 
-function onShoppingAction(e) {
+async function onShoppingAction(e) {
   const { shopAction, id } = e.target.dataset;
   const item = state.shopping.find(i => i.id === id);
   if (!item) return;
-  if (shopAction === 'toggle') item.bought = !item.bought;
-  if (shopAction === 'delete') state.shopping = state.shopping.filter(i => i.id !== id);
-  persist('so_nos_shopping', state.shopping);
-  renderShopping();
-  renderDashboard();
+
+  try {
+    if (state.firebaseReady) {
+      if (shopAction === 'toggle') await updateDoc(doc(db, COLLECTIONS.shopping, id), { bought: !item.bought });
+      if (shopAction === 'delete') await deleteDoc(doc(db, COLLECTIONS.shopping, id));
+    } else {
+      if (shopAction === 'toggle') item.bought = !item.bought;
+      if (shopAction === 'delete') state.shopping = state.shopping.filter(i => i.id !== id);
+      persist('so_nos_shopping', state.shopping);
+      renderShopping();
+      renderDashboard();
+    }
+  } catch (error) {
+    console.error('Erro ao atualizar item:', error);
+    alert('Não foi possível atualizar o item.');
+  }
 }
 
 function renderEvents() {
@@ -307,12 +536,24 @@ function renderEvents() {
     `;
     els.eventList.appendChild(el);
   });
-  els.eventList.querySelectorAll('[data-event-delete]').forEach(btn => btn.addEventListener('click', e => {
-    state.events = state.events.filter(ev => ev.id !== e.target.dataset.eventDelete);
-    persist('so_nos_events', state.events);
-    renderEvents();
-    renderDashboard();
-  }));
+  els.eventList.querySelectorAll('[data-event-delete]').forEach(btn => btn.addEventListener('click', onEventDelete));
+}
+
+async function onEventDelete(e) {
+  const id = e.target.dataset.eventDelete;
+  try {
+    if (state.firebaseReady) {
+      await deleteDoc(doc(db, COLLECTIONS.events, id));
+    } else {
+      state.events = state.events.filter(ev => ev.id !== id);
+      persist('so_nos_events', state.events);
+      renderEvents();
+      renderDashboard();
+    }
+  } catch (error) {
+    console.error('Erro ao apagar evento:', error);
+    alert('Não foi possível apagar o evento.');
+  }
 }
 
 function renderMemories() {
@@ -334,12 +575,24 @@ function renderMemories() {
     `;
     els.memoryList.appendChild(el);
   });
-  els.memoryList.querySelectorAll('[data-memory-delete]').forEach(btn => btn.addEventListener('click', e => {
-    state.memories = state.memories.filter(mem => mem.id !== e.target.dataset.memoryDelete);
-    persist('so_nos_memories', state.memories);
-    renderMemories();
-    renderDashboard();
-  }));
+  els.memoryList.querySelectorAll('[data-memory-delete]').forEach(btn => btn.addEventListener('click', onMemoryDelete));
+}
+
+async function onMemoryDelete(e) {
+  const id = e.target.dataset.memoryDelete;
+  try {
+    if (state.firebaseReady) {
+      await deleteDoc(doc(db, COLLECTIONS.memories, id));
+    } else {
+      state.memories = state.memories.filter(mem => mem.id !== id);
+      persist('so_nos_memories', state.memories);
+      renderMemories();
+      renderDashboard();
+    }
+  } catch (error) {
+    console.error('Erro ao apagar memória:', error);
+    alert('Não foi possível apagar a memória.');
+  }
 }
 
 function renderDashboard() {
@@ -351,7 +604,7 @@ function renderDashboard() {
   els.dashboardPendingItems.textContent = pending.length;
   els.dashboardLastItem.textContent = pending[0] ? `${pending[0].name} · ${pending[0].store}` : 'Lista vazia';
 
-  const nextEvent = [...state.events].filter(e => e.date >= today()).sort((a,b) => a.date.localeCompare(b.date))[0];
+  const nextEvent = [...state.events].filter(e => e.date >= today()).sort((a, b) => a.date.localeCompare(b.date))[0];
   els.dashboardNextEvent.textContent = nextEvent ? nextEvent.title : 'Sem próximo evento';
   els.dashboardNextEventDate.textContent = nextEvent ? `${formatDate(nextEvent.date)} · ${nextEvent.type}` : 'Adiciona um momento especial';
 
@@ -359,15 +612,35 @@ function renderDashboard() {
   els.dashboardLastMemory.textContent = state.memories[0] ? `${state.memories[0].title} · ${formatDate(state.memories[0].date)}` : 'Guarda o vosso primeiro momento';
 }
 
+async function uploadImage(file, path) {
+  if (!state.firebaseReady || !storage) {
+    return await fileToDataURL(file);
+  }
+  const imageRef = ref(storage, path);
+  await uploadBytes(imageRef, file);
+  return await getDownloadURL(imageRef);
+}
+
+function safeName(name) {
+  return (name || 'imagem').replace(/[^a-zA-Z0-9._-]/g, '-');
+}
+
 function val(id) { return document.getElementById(id).value.trim(); }
 function uid() { return Math.random().toString(36).slice(2, 10); }
 function load(key, fallback) { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } }
 function persist(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
 function empty(text) { return `<article class="card list-card"><p>${text}</p></article>`; }
-function today() { return new Date().toISOString().slice(0,10); }
-function formatDate(date) { return new Date(date + 'T12:00:00').toLocaleDateString('pt-PT', { day:'2-digit', month:'2-digit', year:'numeric' }); }
-function formatDateTime(date) { return new Date(date).toLocaleString('pt-PT', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }); }
-function escapeHtml(str='') { return str.replace(/[&<>'"]/g, tag => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[tag])); }
+function today() { return new Date().toISOString().slice(0, 10); }
+function formatDate(date) {
+  if (!date) return 'Sem data';
+  return new Date(date + 'T12:00:00').toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+function formatDateTime(date) {
+  return new Date(date).toLocaleString('pt-PT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+function escapeHtml(str = '') {
+  return String(str).replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag]));
+}
 function fileToDataURL(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

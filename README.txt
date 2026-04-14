@@ -1,31 +1,34 @@
-SÓ NOS - APP DE CASAL
+SÓ NOS — FIREBASE V2
 
-Esta versão já inclui:
-- Chat privado com resposta a mensagens
-- Lista de compras melhorada
-- Agenda do casal
-- Memórias com imagem
-- Navegação em baixo
-- Visual roxo premium
-- PWA pronta para Android/iPhone
+Esta versão já está preparada para funcionar em tempo real com Firebase.
 
-COMO USAR LOCALMENTE
-1. Descompactar o ZIP.
-2. Abrir a pasta num servidor local simples.
-3. Exemplo no PC com Python:
-   python -m http.server 8000
-4. Abrir http://localhost:8000
+1) Abre o ficheiro firebase-config.js
+2) Cola a configuração web do teu projeto Firebase
+3) Publica esta pasta no GitHub Pages ou abre num servidor local
 
-COMO INSTALAR NO IPHONE
-1. Publicar a pasta no GitHub Pages ou outro hosting.
-2. Abrir no Safari.
-3. Partilhar > Adicionar ao ecrã principal.
+REGRAS FIRESTORE
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /messages/{doc} { allow read, write: if true; }
+    match /shopping/{doc} { allow read, write: if true; }
+    match /events/{doc} { allow read, write: if true; }
+    match /memories/{doc} { allow read, write: if true; }
+  }
+}
 
-FIREBASE
-- O ficheiro firebase-config.js está em modo local.
-- Quando tiveres os dados do Firebase, cola nesse ficheiro.
-- O ficheiro firebase-config.example.js mostra o formato.
+REGRAS STORAGE
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /chat-images/{allPaths=**} {
+      allow read, write: if true;
+    }
+  }
+}
 
-NOTA
-Neste ZIP a app está funcional em modo local para testar o layout e as funções.
-A ligação real ao Firebase pode ser adicionada numa próxima versão.
+IMPORTANTE
+- O chat, compras, agenda e memórias sincronizam em tempo real
+- As imagens do chat e das memórias ficam no Storage
+- Se o Firebase não estiver preenchido, a app usa modo local
+- Para Android/iPhone, instala pelo browser como app
