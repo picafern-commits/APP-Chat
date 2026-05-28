@@ -64,6 +64,8 @@ const els = {
   eventForm: document.getElementById('eventForm'),
   eventList: document.getElementById('eventList'),
   shareLocationBtn: document.getElementById('shareLocationBtn'),
+  locationMap: document.getElementById('locationMap'),
+  locationMapEmpty: document.getElementById('locationMapEmpty'),
   locationStatus: document.getElementById('locationStatus'),
   locationHint: document.getElementById('locationHint'),
   locationList: document.getElementById('locationList'),
@@ -651,6 +653,7 @@ function renderLocations() {
   els.locationList.innerHTML = locations.length ? '' : empty('Ainda não há localizações partilhadas.');
 
   const latest = locations[0];
+  renderLocationMap(latest);
   els.locationStatus.textContent = latest ? `${latest.owner} partilhou a posição` : 'Localização ainda não partilhada';
   els.locationHint.textContent = latest
     ? `Atualizado ${formatDateTime(latest.createdAt)} com precisão aproximada de ${latest.accuracy || '?'} m.`
@@ -669,6 +672,21 @@ function renderLocations() {
     `;
     els.locationList.appendChild(el);
   });
+}
+
+function renderLocationMap(location) {
+  if (!els.locationMap || !els.locationMapEmpty) return;
+
+  if (!location) {
+    els.locationMap.src = defaultMapEmbedUrl();
+    els.locationMap.classList.remove('hidden');
+    els.locationMapEmpty.classList.remove('hidden');
+    return;
+  }
+
+  els.locationMap.src = mapEmbedUrl(location);
+  els.locationMap.classList.remove('hidden');
+  els.locationMapEmpty.classList.add('hidden');
 }
 
 function renderEvents() {
@@ -796,6 +814,19 @@ function newestLocationsByOwner(locations) {
 
 function mapUrl(location) {
   return `https://www.google.com/maps?q=${encodeURIComponent(`${location.latitude},${location.longitude}`)}`;
+}
+
+function mapEmbedUrl(location) {
+  const lat = Number(location.latitude);
+  const lon = Number(location.longitude);
+  const delta = 0.012;
+  const bbox = [lon - delta, lat - delta, lon + delta, lat + delta].join(',');
+  const marker = `${lat},${lon}`;
+  return `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${encodeURIComponent(marker)}`;
+}
+
+function defaultMapEmbedUrl() {
+  return 'https://www.openstreetmap.org/export/embed.html?bbox=-9.236%2C38.676%2C-9.054%2C38.802&layer=mapnik';
 }
 
 function updateNotificationButton() {

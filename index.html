@@ -141,6 +141,13 @@
         </div>
 
         <div class="card location-card">
+          <div class="map-shell">
+            <iframe id="locationMap" title="Mapa da localização" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+            <div id="locationMapEmpty" class="map-empty">
+              <strong>Mapa sem posição</strong>
+              <span>Partilha a localização para aparecer aqui.</span>
+            </div>
+          </div>
           <div>
             <p class="eyebrow">Estado</p>
             <h3 id="locationStatus">Localização ainda não partilhada</h3>
