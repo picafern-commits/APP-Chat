@@ -50,6 +50,11 @@
             <h3><span id="dashboardMemories">0</span> memórias</h3>
             <span id="dashboardLastMemory">Guarda o vosso primeiro momento</span>
           </article>
+          <article class="card stat-card">
+            <p class="eyebrow">Localização</p>
+            <h3 id="dashboardLastLocation">Sem partilha ativa</h3>
+            <span id="dashboardLocationMeta">Partilha a tua posição quando quiseres</span>
+          </article>
         </div>
       </section>
 
@@ -126,6 +131,25 @@
         <div id="shoppingList" class="stack-list"></div>
       </section>
 
+      <section id="view-location" class="view">
+        <div class="card section-header">
+          <div>
+            <p class="eyebrow">GPS</p>
+            <h2>Encontrar-nos</h2>
+          </div>
+          <button id="shareLocationBtn" class="primary-btn">Partilhar localização</button>
+        </div>
+
+        <div class="card location-card">
+          <div>
+            <p class="eyebrow">Estado</p>
+            <h3 id="locationStatus">Localização ainda não partilhada</h3>
+            <p id="locationHint">Quando partilhares, a outra pessoa consegue abrir o mapa e ver onde estás.</p>
+          </div>
+          <div id="locationList" class="location-list"></div>
+        </div>
+      </section>
+
       <section id="view-calendar" class="view">
         <div class="card section-header">
           <div>
@@ -137,13 +161,22 @@
         <form id="eventForm" class="card stack-form">
           <input id="eventTitle" type="text" placeholder="Título do evento" required />
           <div class="grid two tight">
-            <input id="eventDate" type="date" required />
+            <input id="eventDate" type="date" aria-label="Data do evento" required />
+            <input id="eventTime" type="time" aria-label="Hora do evento" />
+          </div>
+          <div class="grid two tight">
             <select id="eventType" class="select">
               <option>Jantar</option>
               <option>Viagem</option>
               <option>Aniversário</option>
               <option>Saída</option>
               <option>Outro</option>
+            </select>
+            <select id="eventReminder" class="select">
+              <option value="none">Sem lembrete</option>
+              <option value="15">15 min antes</option>
+              <option value="60">1 hora antes</option>
+              <option value="1440">1 dia antes</option>
             </select>
           </div>
           <input id="eventNote" type="text" placeholder="Nota rápida" />
@@ -183,6 +216,13 @@
         <div class="card settings-card">
           <div class="setting-row">
             <div>
+              <h3>Notificações</h3>
+              <p>Recebe avisos locais para mensagens, compras e lembretes enquanto a app estiver ativa.</p>
+            </div>
+            <button id="enableNotificationsBtn" class="ghost-btn">Ativar</button>
+          </div>
+          <div class="setting-row">
+            <div>
               <h3>Modo Firebase</h3>
               <p>Ativa quando preencheres o ficheiro firebase-config.js.</p>
             </div>
@@ -203,8 +243,8 @@
       <button class="nav-btn active" data-view="dashboard">🏠<span>Início</span></button>
       <button class="nav-btn" data-view="chat">💬<span>Chat</span></button>
       <button class="nav-btn" data-view="shopping">🛒<span>Compras</span></button>
+      <button class="nav-btn" data-view="location">📍<span>GPS</span></button>
       <button class="nav-btn" data-view="calendar">📅<span>Agenda</span></button>
-      <button class="nav-btn" data-view="memories">❤️<span>Memórias</span></button>
       <button class="nav-btn" data-view="settings">⚙️<span>Def.</span></button>
     </nav>
   </div>
